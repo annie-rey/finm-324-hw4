@@ -24,6 +24,20 @@ def match_categories(quotes, executions):
 
     return quotes, executions
 
+def trim_to_market_hours(quotes, executions, time_columns, day):
+    quotes_time_columns = [col for col in time_columns
+                           if col in quotes.columns]
+    for col in quotes_time_columns:
+        #using .loc because .truncate was overloading my computer?
+        quotes = quotes.loc[(quotes[col] >= f"{day} 09:30") & (quotes[col] <= f"{day} 16:00")]
+    executions_time_columns = [col for col in time_columns
+                               if col in executions.columns]
+    for col in executions_time_columns:
+        executions = executions.loc[(executions[col] >= f"{day} 09:30") & (executions[col] <= f"{day} 16:00")]
+        
+    return quotes, executions
+
+
 def merge_data(quotes, executions):
     """Docstring"""
     executions = executions.sort_values(by=["order_time", "symbol"])
@@ -39,19 +53,21 @@ def merge_data(quotes, executions):
         direction='backward'
     )
 
+    merged = merged.dropna()
+
     return merged
 
-def clean_merged_data(merged_data, time_columns, day):
-    """Docstring"""
+"""def clean_merged_data(merged_data, time_columns, day):
 
     merged_data = merged_data.dropna()
     
     #truncate to market hours
     for col in time_columns:
+        #using .loc because .truncate was overloading my computer?
         merged_data = merged_data.loc[(merged_data[col] >= f"{day} 09:30") & 
-                                      (merged_data[col] <= f"{day} 04:00")]
+                                      (merged_data[col] <= f"{day} 16:00")]
 
-    return merged_data
+    return merged_data"""
 
 def add_price_improvement(merged_data):
     """Docstring"""
@@ -109,12 +125,21 @@ def main():
         not args.output_csv_file):
         parser.error("All of --input_quotes_file --input_executions_file and --output_csv_file are required.")
 
+    TIME_COLUMNS = ["sip_timestamp", "order_time", "execution_time"]
+    DAY = "2025-09-10"
+
+    print("loading...")
     quotes, executions = load_data(args.input_quotes_file, args.input_executions_file)
+    print("matching...")
     quotes, executions = match_categories(quotes, executions)
+    print("trimming...")
+    quotes, executions = trim_to_market_hours(quotes, executions, TIME_COLUMNS, DAY)
+    print("merging...")
     merged_data = merge_data(quotes, executions)
-    merged_data = clean_merged_data(merged_data)
+    print("adding...")
     merged_data = add_price_improvement(merged_data)
-    export_merged_data(merged_data)
+    print("exporting...")
+    export_merged_data(merged_data, args.output_csv_file)
 
 if __name__ == "__main__":
     main()
