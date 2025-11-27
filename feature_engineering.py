@@ -53,21 +53,16 @@ def merge_data(quotes, executions):
         direction='backward'
     )
 
-    merged = merged.dropna()
-
     return merged
 
-"""def clean_merged_data(merged_data, time_columns, day):
+def clean_merged_data(merged_data):
+    """Docstring"""
 
-    merged_data = merged_data.dropna()
-    
-    #truncate to market hours
-    for col in time_columns:
-        #using .loc because .truncate was overloading my computer?
-        merged_data = merged_data.loc[(merged_data[col] >= f"{day} 09:30") & 
-                                      (merged_data[col] <= f"{day} 16:00")]
+    merged_data.dropna(inplace=True)
+    merged_data.reset_index(inplace=True)
+    merged_data.drop(["index"], axis=1, inplace=True)
 
-    return merged_data"""
+    return merged_data
 
 def add_price_improvement(merged_data):
     """Docstring"""
@@ -136,6 +131,8 @@ def main():
     quotes, executions = trim_to_market_hours(quotes, executions, TIME_COLUMNS, DAY)
     print("merging...")
     merged_data = merge_data(quotes, executions)
+    print("cleaning...")
+    merged_data = clean_merged_data(merged_data)
     print("adding...")
     merged_data = add_price_improvement(merged_data)
     print("exporting...")
