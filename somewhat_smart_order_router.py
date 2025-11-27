@@ -41,9 +41,9 @@ def best_price_improvement(
     predictions = {}
 
     for name, model in models.items():
-        predictions[name] = model.predict(X_new)
+        predictions[name] = model.predict(X_new)[0]
 
-    predictions_df = pd.DataFrame(predictions, columns=["price_improvement"]).T
+    predictions_df = pd.DataFrame(predictions, index=["price_improvement"]).T
 
     best_value = predictions_df.price_improvement.max()
     best_exchange = predictions_df.price_improvement.idxmax()
