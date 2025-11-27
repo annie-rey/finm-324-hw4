@@ -3,7 +3,7 @@ from typing import Any, Tuple
 import pandas as pd
 
 EXCHANGES = ["1516", "29608"]
-ROOT_PATH = "outputs/models/model"
+ROOT_PATH = "models/"
 
 def best_price_improvement(
         symbol: str,
@@ -30,12 +30,12 @@ def best_price_improvement(
         models = {}
 
         for exchange in exchanges:
-            models[f"ID{exchange}"] = load(root_path + f"/")
+            models[f"ID{exchange}"] = load(root_path + f"model_{exchange}.joblib")
 
         return models
     
     EXCHANGES = ["1516", "29608"]
-    ROOT_PATH = "outputs/models/model"
+    ROOT_PATH = "models/"
 
     models = load_models(ROOT_PATH, EXCHANGES)
     predictions = {}
