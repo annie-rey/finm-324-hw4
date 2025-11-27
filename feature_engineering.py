@@ -1,4 +1,6 @@
 import pandas as pd
+import argparse
+import os
 
 def load_data(quotes_path, executions_path):
     """Docstring"""
@@ -39,15 +41,82 @@ def merge_data(quotes, executions):
 
     return merged
 
-def clean_merged_data(merged_data):
+def clean_merged_data(merged_data, time_columns, day):
     """Docstring"""
 
     merged_data = merged_data.dropna()
     
     #truncate to market hours
+    for col in time_columns:
+        merged_data = merged_data.loc[(merged_data[col] >= f"{day} 09:30") & 
+                                      (merged_data[col] <= f"{day} 04:00")]
 
     return merged_data
 
 def add_price_improvement(merged_data):
-    pass
+    """Docstring"""
+
+    merged_data['price_improvement'] = ((merged_data['limit_price'] - merged_data['execution_price'])*(merged_data['side'] == 1) + 
+                                        (merged_data['execution_price'] - merged_data['limit_price'])*(merged_data['side'] != 1))
+    
+    return merged_data
+
+def export_merged_data(merged_data, export_path):
+    merged_data.to_csv(export_path)
+
+def parse_args():
+    """Docstring"""
+    parser = argparse.ArgumentParser()
+
+    #helper functions to raise helpful errors if the arguments are input incorrectly
+    def input_quotes_file(path):
+        if not path.endswith('.csv.gz'):
+            raise argparse.ArgumentTypeError("Input quotes file must end with .csv.gz")
+        if not os.path.exists(path):
+            raise argparse.ArgumentTypeError(f"File not found: {path}")
+        return path 
+    
+    def input_executions_file(path):
+        if not path.endswith('.csv'):
+            raise argparse.ArgumentTypeError("Input executions file must end with .csv")
+        if not os.path.exists(path):
+            raise argparse.ArgumentTypeError(f"File not found: {path}")
+        return path
+    
+    def output_csv_file(path):
+        if not path.endswith('.csv'):
+            raise argparse.ArgumentTypeError("Output file must end with .csv")
+        return path 
+    
+    #arguments are defined using the helper functions above for helpful and robust error handling
+    parser.add_argument('--input_quotes_file', type=input_quotes_file,
+                        help="path to (compressed) quotes csv file")
+    parser.add_argument('--input_executions_file', type=input_executions_file,
+                        help="path to executions csv file")
+    parser.add_argument('--output_csv_file', type=output_csv_file,
+                        help='path to store the resulting merged csv file under')
+    args = parser.parse_args()
+
+    return parser, args
+
+
+def main():
+    """Docstring"""
+
+    parser, args = parse_args()
+    if (not args.input_quotes_file or 
+        not args.input_executions_file or 
+        not args.output_csv_file):
+        parser.error("All of --input_quotes_file --input_executions_file and --output_csv_file are required.")
+
+    quotes, executions = load_data(args.input_quotes_file, args.input_executions_file)
+    quotes, executions = match_categories(quotes, executions)
+    merged_data = merge_data(quotes, executions)
+    merged_data = clean_merged_data(merged_data)
+    merged_data = add_price_improvement(merged_data)
+    export_merged_data(merged_data)
+
+if __name__ == "__main__":
+    main()
+    
 
