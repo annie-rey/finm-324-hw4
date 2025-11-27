@@ -81,8 +81,8 @@ def parse_args():
     
     #arguments are defined using the helper functions above for helpful and robust error handling
     parser.add_argument('--input_csv_file', type=input_csv_file,
-                        help="path to (compressed) quotes csv file")
-    parser.add_argument('--output_joblib_file_root', type=output_joblib_file,
+                        help="path to input csv file")
+    parser.add_argument('--output_joblib_root_dir', type=output_joblib_file,
                         help='root path to store the resulting models under')
     args = parser.parse_args()
 
@@ -112,8 +112,8 @@ def main():
         X_train, X_test, y_train, y_test = split_exchange_data(X, y)
         pipe = build_exchange_pipeline(model, power_transform, scale_binary)
         train_exchange_pipeline(pipe, X_train, y_train, X_test, y_test)
-        export_exchange_model(pipe, args.output_joblib_file_root + f"model_{exchange}.joblib")
-        print(f"Saved model under {args.output_joblib_file_root + f"model_{exchange}.joblib"}")
+        export_exchange_model(pipe, args.output_joblib_root_dir + f"model_{exchange}.joblib")
+        print(f"Saved model under {args.output_joblib_root_dir + f"model_{exchange}.joblib"}")
 
 if __name__ == "__main__":
     main()
