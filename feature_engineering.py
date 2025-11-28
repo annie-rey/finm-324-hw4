@@ -4,6 +4,10 @@ import os
 import sys
 from datetime import datetime
 
+#Constants
+TIME_COLUMNS = ["sip_timestamp", "order_time", "execution_time"]
+DAY = "2025-09-10"
+
 
 class DataProcessingError(Exception):
     """Custom exception for data processing errors."""
@@ -296,8 +300,20 @@ def main():
     """Main script."""
     parser, args = parse_args()
 
-    TIME_COLUMNS = ["sip_timestamp", "order_time", "execution_time"]
-    DAY = "2025-09-10"
+    # Ensure all the arguments needed are present
+    missing = []
+    if not getattr(args, "input_quotes_file", None):
+        missing.append("--input_quotes_file")
+    if not getattr(args, "input_executions_file", None):
+        missing.append("--input_executions_file")
+    if not getattr(args, "output_csv_file", None):
+        missing.append("--output_csv_file")
+
+    if len(missing) > 0:
+        raise ValueError(
+            f"Missing required command-line arguments: {missing}. "
+            f"Run with --help to see usage information."
+        )
 
     try:
         print("loading...")
@@ -306,10 +322,10 @@ def main():
         print("matching...")
         quotes, executions = match_categories(quotes, executions)
 
-        print("trimming...")
+        print("trimming to market hours...")
         quotes, executions = trim_to_market_hours(quotes, executions, TIME_COLUMNS, DAY)
 
-        print("binarizing...")
+        print("binarizing order side...")
         executions = binarize_order_side(executions)
 
         print("merging...")
