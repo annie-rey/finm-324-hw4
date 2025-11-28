@@ -27,6 +27,7 @@ PREPROCESSING_CONFIG: Dict[str, Tuple[bool, bool]] = {
     "29608": (False, True),
 }
 
+# use optimal configurations found in the model_training notebook
 MODEL_CONFIG: Dict[str, Any] = {
     "1516": ExtraTreesRegressor(
         n_jobs=-1,
