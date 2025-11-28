@@ -21,18 +21,6 @@ def load_data(quotes_path, executions_path):
         quotes = pd.read_csv(quotes_path, dtype={"ticker": "category"})
     except FileNotFoundError:
         raise DataProcessingError(f"Quotes file not found: {quotes_path}")
-    except pd.errors.EmptyDataError:
-        raise DataProcessingError(f"Quotes file is empty: {quotes_path}")
-    except pd.errors.ParserError as exc:
-        raise DataProcessingError(f"Error parsing quotes file {quotes_path}: {exc}")
-
-    # Validate required columns in quotes
-    for col in ["ticker", "sip_timestamp"]:
-        if col not in quotes.columns:
-            raise DataProcessingError(
-                f"Quotes file {quotes_path} is missing required column '{col}'. "
-                f"Available columns: {list(quotes.columns)}"
-            )
 
     # Parse quotes timestamp
     try:
@@ -47,18 +35,6 @@ def load_data(quotes_path, executions_path):
         executions = pd.read_csv(executions_path, dtype={"symbol": "category"})
     except FileNotFoundError:
         raise DataProcessingError(f"Executions file not found: {executions_path}")
-    except pd.errors.EmptyDataError:
-        raise DataProcessingError(f"Executions file is empty: {executions_path}")
-    except pd.errors.ParserError as exc:
-        raise DataProcessingError(f"Error parsing executions file {executions_path}: {exc}")
-
-    # Validate required columns in executions
-    for col in ["symbol", "execution_time", "order_time", "limit_price", "execution_price", "side"]:
-        if col not in executions.columns:
-            raise DataProcessingError(
-                f"Executions file {executions_path} is missing required column '{col}'. "
-                f"Available columns: {list(executions.columns)}"
-            )
 
     # Parse execution timestamps
     for time_col in ["execution_time", "order_time"]:
@@ -77,22 +53,12 @@ def match_categories(quotes, executions):
     if "ticker" not in quotes.columns or "symbol" not in executions.columns:
         raise DataProcessingError("Cannot match categories: 'ticker' or 'symbol' column missing.")
 
-    # Ensure both are categorical
-    if not pd.api.types.is_categorical_dtype(quotes["ticker"]):
-        quotes["ticker"] = quotes["ticker"].astype("category")
+    executions_tickers = set(executions["symbol"].cat.categories)
+    quotes_tickers = set(quotes["ticker"].cat.categories)
+    all_tickers = executions_tickers.union(quotes_tickers)
 
-    if not pd.api.types.is_categorical_dtype(executions["symbol"]):
-        executions["symbol"] = executions["symbol"].astype("category")
-
-    try:
-        executions_tickers = set(executions["symbol"].cat.categories)
-        quotes_tickers = set(quotes["ticker"].cat.categories)
-        all_tickers = executions_tickers.union(quotes_tickers)
-
-        executions["symbol"] = executions["symbol"].cat.set_categories(all_tickers)
-        quotes["ticker"] = quotes["ticker"].cat.set_categories(all_tickers)
-    except Exception as exc:
-        raise DataProcessingError(f"Failed to match ticker categories: {exc}")
+    executions["symbol"] = executions["symbol"].cat.set_categories(all_tickers)
+    quotes["ticker"] = quotes["ticker"].cat.set_categories(all_tickers)
 
     return quotes, executions
 
@@ -116,19 +82,11 @@ def trim_to_market_hours(quotes, executions, time_columns, day):
     # Quotes
     quotes_time_columns = [col for col in time_columns if col in quotes.columns]
     for col in quotes_time_columns:
-        if not pd.api.types.is_datetime64_any_dtype(quotes[col]):
-            raise DataProcessingError(
-                f"Column '{col}' in quotes must be datetime before trimming to market hours."
-            )
         quotes = quotes.loc[(quotes[col] >= market_open) & (quotes[col] <= market_close)]
 
     # Executions
     executions_time_columns = [col for col in time_columns if col in executions.columns]
     for col in executions_time_columns:
-        if not pd.api.types.is_datetime64_any_dtype(executions[col]):
-            raise DataProcessingError(
-                f"Column '{col}' in executions must be datetime before trimming to market hours."
-            )
         executions = executions.loc[(executions[col] >= market_open) & (executions[col] <= market_close)]
 
     if quotes.empty:
@@ -146,31 +104,17 @@ def trim_to_market_hours(quotes, executions, time_columns, day):
     return quotes, executions
 
 def binarize_order_side(executions):
-    """Make 'side' a binary variable with value 1 if side=="BUY" and 0 if side=="SELL" """
+    """Make 'side' a binary variable with value 1 if side is BUY and 0 if side is SELL """
     executions["side"] = executions["side"].apply(lambda x:x if x==1 else 0)
     return executions
 
 
 def merge_data(quotes, executions):
     """Merge executions with the most recent quotes using merge_asof()."""
-    required_exec_cols = {"order_time", "symbol"}
-    required_quote_cols = {"sip_timestamp", "ticker"}
-
-    if not required_exec_cols.issubset(executions.columns):
-        raise DataProcessingError(
-            f"Executions DataFrame missing columns for merge: {required_exec_cols - set(executions.columns)}"
-        )
-    if not required_quote_cols.issubset(quotes.columns):
-        raise DataProcessingError(
-            f"Quotes DataFrame missing columns for merge: {required_quote_cols - set(quotes.columns)}"
-        )
 
     # Sort before merge_asof
-    try:
-        executions = executions.sort_values(by=["order_time", "symbol"])
-        quotes = quotes.sort_values(by=["sip_timestamp", "ticker"])
-    except KeyError as exc:
-        raise DataProcessingError(f"Failed to sort before merge: {exc}")
+    executions = executions.sort_values(by=["order_time", "symbol"])
+    quotes = quotes.sort_values(by=["sip_timestamp", "ticker"])
 
     try:
         merged = pd.merge_asof(
@@ -193,8 +137,6 @@ def merge_data(quotes, executions):
 
 def clean_merged_data(merged_data):
     """Drop rows with NaNs and reset index."""
-    if not isinstance(merged_data, pd.DataFrame):
-        raise DataProcessingError("clean_merged_data expects a pandas DataFrame.")
 
     before = len(merged_data)
     merged_data = merged_data.dropna().reset_index(drop=True)
@@ -210,20 +152,6 @@ def clean_merged_data(merged_data):
 
 def add_price_improvement(merged_data):
     """Add a 'price_improvement' column based on side, limit_price, and execution_price."""
-    required_cols = {"limit_price", "execution_price", "side"}
-    if not required_cols.issubset(merged_data.columns):
-        raise DataProcessingError(
-            f"Cannot compute price_improvement. Missing columns: {required_cols - set(merged_data.columns)}"
-        )
-
-    # Validate numeric types
-    for col in ["limit_price", "execution_price"]:
-        if not pd.api.types.is_numeric_dtype(merged_data[col]):
-            raise DataProcessingError(f"Column '{col}' must be numeric to compute price improvement.")
-
-    # side should be something we can compare to 1
-    if not pd.api.types.is_numeric_dtype(merged_data["side"]):
-        raise DataProcessingError("Column 'side' must be numeric (e.g., 1 for buy, 0 or -1 for sell).")
 
     try:
         merged_data["price_improvement"] = (
@@ -343,11 +271,11 @@ def main():
         print("Done.")
 
     except DataProcessingError as exc:
-        # Known, user-facing errors
+        # Known errors built into the functions
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
     except Exception as exc:
-        # Unexpected errors – still fail cleanly
+        # Unexpected errors
         print("An unexpected error occurred:", file=sys.stderr)
         print(repr(exc), file=sys.stderr)
         sys.exit(1)
