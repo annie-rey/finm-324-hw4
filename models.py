@@ -164,7 +164,7 @@ def split_exchange_data(
     return train_test_split(X, y, test_size=test_size, random_state=random_state)
 
 
-# ---- Pipeline construction & training ----
+# Pipeline construction & training
 
 def build_exchange_pipeline(
     model: ExtraTreesRegressor,
@@ -323,7 +323,7 @@ def parse_args():
     return parser, args
 
 
-# ---- Main program ----
+# Main program
 
 def main() -> None:
     """
